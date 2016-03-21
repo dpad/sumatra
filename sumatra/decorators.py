@@ -16,7 +16,7 @@ from __future__ import unicode_literals
 from builtins import str
 import time
 from sumatra.programs import PythonExecutable
-from sumatra.parameters import ParameterSet, SimpleParameterSet
+from sumatra.parameters import ParameterSet, SimpleStringParameterSet
 import sys
 import os
 import contextlib
@@ -28,15 +28,19 @@ class _ByteAndUnicodeStringIO(StringIO):
 
     The io.StringIO implementation does not accept Py2 `str`.
     """
-
     def write(self, object):
         StringIO.write(self, str(object))
 
+class _ByteAndUnicodeStringIOAndStdout(_ByteAndUnicodeStringIO):
+    """ Also writes to STDOUT."""
+    def write(self, object):
+        sys.__stdout__.write(object)
+        super(_ByteAndUnicodeStringIO, self).write(str(object))
 
 @contextlib.contextmanager
 def _grab_stdout_stderr():
     try:
-        output = _ByteAndUnicodeStringIO()
+        output = _ByteAndUnicodeStringIOAndStdout()
         sys.stdout, sys.stderr = output, output
         yield output
     finally:
@@ -53,9 +57,7 @@ def capture(main):
     * If the first (un-named) argument is a ParameterSet, or there is a named
       argument "parameters" containing a ParameterSet, then that is recorded.
     * Otherwise, all arguments to the function are packaged into a 
-      SimpleParameterSet. This assumes all arguments are basic types 
-      (i.e. str, float, int, etc.), otherwise an exception will be raised.
-    
+      SimpleStringParameterSet.    
     The first argument of main() must be a parameter set.
     """
     def wrapped_main(*args, **kwargs):
@@ -68,10 +70,10 @@ def capture(main):
             # If there is a named "parameters" argument
             parameters = kwargs["parameters"]
         else:
-            # Package all parameters into a SimpleParameterSet
+            # Package all parameters into a SimpleStringParameterSet
             parameters = dict(zip(["arg%d" % x for x in range(len(args))], args))
             parameters.update(kwargs)
-            parameters = SimpleParameterSet(parameters)
+            parameters = SimpleStringParameterSet(parameters)
 
         import sumatra.projects
         project = sumatra.projects.load_project()

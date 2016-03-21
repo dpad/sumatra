@@ -54,6 +54,7 @@ except ImportError:
     yaml_loaded = False
 import parameters
 from .core import component, component_type, get_registered_components, conditional_component
+import cPickle
 
 POP_NONE = "eiutbocqnluiegnclqiuetyvbietcbdgsfzpq"
 
@@ -373,6 +374,54 @@ class SimpleParameterSet(ParameterSet):
         for name, value in F.items():
             self._add_or_update_parameter(name, value)
     update.__doc__ = dict.update.__doc__
+
+@component
+class SimpleStringParameterSet(SimpleParameterSet):
+    """
+    Like SimpleParameterSet, but used to capture non-simple values.
+    Specifically, it stores all parameters as a stringified version of the
+    parameter, so it supports all objects with __str__.
+
+    All objects are stored as a pickle just so it's easy to read/write.
+    """
+    name = ".simplestringparamset"
+
+    def __init__(self, initialiser):
+        """
+        Creates a new set from a pickled file/string, or from a dictionary of
+        name => value.
+        """
+        self.values = {}
+        self.types = {}
+        self.comments = {}
+        if isinstance(initialiser, dict):
+            for name, value in initialiser.items():
+                self._add_or_update_parameter(name=name, value=value)
+        elif SimpleStringParameterSet._is_valid_file(initialiser):
+            with open(initialiser) as f:
+                (self.values, self.types, self.comments) = cPickle.load(f)
+            self.source_file = initialiser
+        else:
+            try:
+                (self.values, self.types, self.comments) = cPickle.loads(initialiser.encode('latin1'))
+            except (AttributeError, TypeError, ValueError), e:
+                raise TypeError("Parameter set initialiser must be a filename, string or dict. %s" % e)
+
+    def _add_or_update_parameter(self, name, value, comment=None):
+        value = str(value)
+        super(SimpleStringParameterSet, self)._add_or_update_parameter(name, value, comment)
+
+    def __str__(self):
+        return cPickle.dumps((self.values, self.types, self.comments), -1).decode('latin1')
+
+    def save(self, filename, add_extension=False):
+        if add_extension:
+            filename += ".param"
+        if os.path.exists(filename):
+            shutil.copy(filename, filename + ".orig")
+        with open(filename, 'w') as f:
+            cPickle.dump((self.values, self.types, self.comments), f, -1)
+        return filename
 
 
 @component
