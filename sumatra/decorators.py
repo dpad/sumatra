@@ -86,11 +86,12 @@ def capture(main):
         parameters.update({"sumatra_label": record.label})
         start_time = time.time()
         with _grab_stdout_stderr() as stdout_stderr:
-            main(*args, **kwargs)
+            main_result = main(*args, **kwargs)
             record.stdout_stderr = stdout_stderr.getvalue()
         record.duration = time.time() - start_time
         record.output_data = record.datastore.find_new_data(record.timestamp)
         project.add_record(record)
         project.save()
+        return main_result
 
     return wrapped_main
